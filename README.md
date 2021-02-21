@@ -17,7 +17,7 @@ python3 main_train.py --gpu_list='0' --learning_rate=0.0001 --train_stage=2 --tr
 ```
 ### Test
 ```
-python3 main_test.py --gpu_list='0' --test_data_path=/path/to/testset/ --checkpoint_path=checkpoints/
+python3 main_test.py --gpu_list='0' --test_data_path=training_samples/ --checkpoint_path=checkpoints/SynthText_6_epochs --no_write_images=False
 ```
 ### How to use
 #### Train your own data
