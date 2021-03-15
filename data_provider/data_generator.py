@@ -26,7 +26,7 @@ def generator(input_images_dir, input_gt_dir, input_size=512, batch_size=12, ran
         batch_geo_maps = []
         batch_training_masks = []
 
-        batch_text_polyses = [] 
+        batch_text_polyses = []
         batch_text_tagses = []
         batch_boxes_masks = []
 
@@ -49,10 +49,10 @@ def generator(input_images_dir, input_gt_dir, input_size=512, batch_size=12, ran
                     continue
                 print(txt_fn)
                 text_polys, text_tags, text_labels = data_loader.load_annotation(txt_fn) # Change for load text transiption
-                
+
                 if text_polys.shape[0] == 0:
                     continue
-                
+
                 text_polys, text_tags, text_labels = check_and_validate_polys(text_polys, text_tags, text_labels, (h, w))
 
                 ############################# Data Augmentation ##############################
@@ -119,7 +119,7 @@ def generator(input_images_dir, input_gt_dir, input_size=512, batch_size=12, ran
                     batch_text_polyses = np.concatenate(batch_text_polyses)
                     batch_text_tagses = np.concatenate(batch_text_tagses)
                     batch_transform_matrixes, batch_box_widths = get_project_matrix_and_width(batch_text_polyses, batch_text_tagses)
-                    # TODO limit the batch size of recognition 
+                    # TODO limit the batch size of recognition
                     batch_text_labels_sparse = sparse_tuple_from(np.array(batch_text_labels))
 
                     # yield images, image_fns, score_maps, geo_maps, training_masks
@@ -129,7 +129,7 @@ def generator(input_images_dir, input_gt_dir, input_size=512, batch_size=12, ran
                     batch_score_maps = []
                     batch_geo_maps = []
                     batch_training_masks = []
-                    batch_text_polyses = [] 
+                    batch_text_polyses = []
                     batch_text_tagses = []
                     batch_boxes_masks = []
                     batch_text_labels = []
@@ -179,7 +179,7 @@ def test():
             poly_start_index = len(masks[i-1])
             poly_end_index = len(masks[i-1]) + len(mask)
             for poly, la,  in zip(polygons[prev_start_index:(prev_start_index+len(mask))], labels[prev_start_index:prev_start_index+len(mask)]):
-                cv2.polylines(img, [poly.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1)
+                cv2.polylines(img, [poly.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1, lineType=cv2.LINE_AA)
                 # trans = ground_truth_to_word(la)
                 # img_name = img_name + trans + '_'
             img_name = img_name[:-1] + '.jpg'

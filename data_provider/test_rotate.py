@@ -11,7 +11,7 @@ def test():
     img, text_polygons = rotate_image(img, text_polygons, 15)
 
     for poly in text_polygons:
-        img = cv2.polylines(img, [poly.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1)
+        img = cv2.polylines(img, [poly.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1, lineType=cv2.LINE_AA)
 
     cv2.imwrite("rotate.jpg", img)
 

@@ -22,6 +22,5 @@ for path in tqdm.tqdm(os.listdir(images_root_dir)):
             line = line.strip()
             line = line.split(',')
             coord = np.array(list(map(eval, line[:8]))).reshape((-1, 2))
-            cv2.polylines(img, [coord.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1)
+            cv2.polylines(img, [coord.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1, lineType=cv2.LINE_AA)
     cv2.imwrite(os.path.join(args.save_dir, path), img)
-

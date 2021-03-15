@@ -34,7 +34,7 @@ for imgname in imgnames:
         box = np.array([int(b) for b in output[0:8]], dtype=np.int32).reshape((4, 2))
         recognition_result = output[8]
         # Draw bounding box
-        cv.polylines(res, box.reshape((1, 4, 2)), isClosed=True, color=(255, 255, 0))
+        cv.polylines(res, box.reshape((1, 4, 2)), isClosed=True, color=(255, 255, 0), lineType=cv.LINE_AA)
         # Draw recognition results area
         text_area = box.copy()
         text_area[2, 1] = text_area[1, 1]

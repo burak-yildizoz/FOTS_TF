@@ -140,8 +140,8 @@ def get_project_matrix_and_width(text_polyses, target_height=8.0):
         width_box = int(min(width_box, 128)) # not to exceed feature map's width
         # width_box = int(min(width_box, 512)) # not to exceed feature map's width
         """
-        if width_box > max_width: 
-            max_width = width_box 
+        if width_box > max_width:
+            max_width = width_box
         """
         mapped_x2, mapped_y2 = (width_box, 0)
         # mapped_x3, mapped_y3 = (width_box, 8)
@@ -184,7 +184,7 @@ def main(argv=None):
     if FLAGS.use_vacab and os.path.exists("./vocab.txt"):
         bk_tree = BKTree(levenshtein, list_words('./vocab.txt'))
         # bk_tree = bktree.Tree()
-    """            
+    """
     with tf.get_default_graph().as_default():
         input_images = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='input_images')
         input_feature_map = tf.placeholder(tf.float32, shape=[None, None, None, 32], name='input_feature_map')
@@ -220,7 +220,7 @@ def main(argv=None):
                 timer = {'detect': 0, 'restore': 0, 'nms': 0, 'recog': 0}
                 start = time.time()
                 shared_feature_map, score, geometry = sess.run([shared_feature, f_score, f_geometry], feed_dict={input_images: [im_resized]})
-                
+
                 boxes, timer = detect(score_map=score, geo_map=geometry, timer=timer)
                 timer['detect'] = time.time() - start
                 start = time.time() # reset for recognition
@@ -238,7 +238,7 @@ def main(argv=None):
                         boxes_masks = [0] * tmp_roi_boxes.shape[0]
                         transform_matrixes, box_widths = get_project_matrix_and_width(tmp_roi_boxes)
                         # max_box_widths = max_width * np.ones(boxes_masks.shape[0]) # seq_len
-                    
+
                         # Run end to end
                         recog_decode = sess.run(dense_decode, feed_dict={input_feature_map: shared_feature_map, input_transform_matrix: transform_matrixes, input_box_mask[0]: boxes_masks, input_box_widths: box_widths})
                         recog_decode_list.extend([r for r in recog_decode])
@@ -269,9 +269,9 @@ def main(argv=None):
                             f.write('{},{},{},{},{},{},{},{},{}\r\n'.format(
                                 box[0, 0], box[0, 1], box[1, 0], box[1, 1], box[2, 0], box[2, 1], box[3, 0], box[3, 1], recognition_result
                             ))
-                            
+
                             # Draw bounding box
-                            cv2.polylines(im[:, :, ::-1], [box.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1)
+                            cv2.polylines(im[:, :, ::-1], [box.astype(np.int32).reshape((-1, 1, 2))], True, color=(255, 255, 0), thickness=1, lineType=cv2.LINE_AA)
                             # Draw recognition results area
                             text_area = box.copy()
                             text_area[2, 1] = text_area[1, 1]
