@@ -1,32 +1,39 @@
-# Fast Oriented Text Spotting with a Unified Networkt
-### Update
-[08/17/2019] A new version is updated, please checkout the branch 'dev' ([link](https://github.com/Pay20Y/FOTS_TF/tree/dev)).
+# Fast Oriented Text Spotting with a Unified Networks
 ### Introduction
 This is an implementation of [FOTS: Fast Oriented Text Spotting with a Unified Network](https://arxiv.org/pdf/1801.01671.pdf)
 ### Install
-+ Python2
-+ tensorflow
++ Python3.5
++ tensorflow 1.12.0
 + OpenCV
+```
+pip install -r requirements.txt
+git clone -b dev https://github.com/Pay20Y/FOTS_TF.git
+```
 ### Model
-Model pretrained on Synth800 for 6 epoch and finetuned on ICDAR15 [BaiduYunLink](https://pan.baidu.com/s/1BgkVHFaT91AptdwcTeJ2gg) keys:0aky
-or [GithubLink](https://github.com/harish2704/FOTS_TF-data/blob/master/FOTS_checkpoint.zip) thanks for [harish2704](https://github.com/harish2704).
-If you encounter problems, you can refer to [#16](https://github.com/Pay20Y/FOTS_TF/issues/16).
+SynthText 6-epochs pretrained model can be found [here](https://github.com/Pay20Y/FOTS_TF/releases/download/v2/SynthText_6_epochs.tar)
 ### Train
->> python2 multigpu_train.py --gpu_list=gpu_id --training_data_path=/path/to/trainset/
-
-You should also change line 824 in icdar.py should be changed for the path of annotation file
+```
+python3 main_train.py --gpu_list='0' --learning_rate=0.0001 --train_stage=2 --training_data_dir='/path/to/your/training images/' --training_gt_data_dir='/path/to/your/training annotations'
+```
 ### Test
->> python2 eval.py --gpu_list=gpu_id --test_data_path=/path/to/testset/ --checkpoint_path=checkpoints/
-### Examples
-![image_1](demo_images/img_1.jpg)
-![image_2](demo_images/img_2.jpg)
-![image_3](demo_images/img_3.jpg)
-### Differences from paper
-+ Without OHEM
-+ Pretrained on Synth800k for 6 epochs not 10 epochs
-+ Fine-tuned on ICDAR15 only without ICDAR2017 MLT
-+ And it can only get F-score 56 on ICDAR2015 testset, more training tricks are needed
+```
+python3 main_test.py --gpu_list='0' --test_data_path=training_samples/ --checkpoint_path=checkpoints/SynthText_6_epochs --no_write_images=False
+```
+### How to use
+#### Train your own data
+If your data is same as the ICDAR annotations you can train the network directly.  
+Or you can implement your own data loader ([reference](data_provider/ICDAR_loader.py)). You should reimplement the load_annotations function which return the text polygons coordinates (shape: 4*2), text tags and transcriptions.  
+Note, for 'Don't care' text text tags should be True and transcription should be [-1]  
+And finetuning your own data on the SynthText pretrained model is suggested:  
+```
+python3 main_train.py --gpu_list='0' --learning_rate=0.0001 --train_stage=2 --training_data_dir='/path/to/your/training images/' --training_gt_data_dir='/path/to/your/training annotations' --pretrained_model_path='SynthText_6_epochs/'
+```
+### Examples and Experiments
+Coming soon
+### TODO
+- [ ] Experiments on ICDAR2015 & ICDAR2017
+- [ ] Decode with lexicon or language model
 ### Reference
 + [EAST](https://github.com/argman/EAST)
-+ [FOTS.Pytorch](https://github.com/jiangxiluning/FOTS.PyTorch)
++ [FOTS.Pytorch](https://github.com/jiangxiluning/FOTS.PyTorch)  
 Thanks for the authors!

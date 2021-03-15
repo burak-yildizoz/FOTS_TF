@@ -14,25 +14,24 @@ Licensed under the PSF license: http://www.python.org/psf/license/
 - Adam Hupp <adam@hupp.org>
 
 """
-from itertools import imap, ifilter
+# from itertools import imap, ifilter
 
 
 class BKTree:
+    """
     def __init__(self, distfn, words):
-        """
-        Create a new BK-tree from the given distance function and
-        words.
-        
-        Arguments:
+        # Create a new BK-tree from the given distance function and
+        # words.
+        #
+        # Arguments:
+        #
+        # distfn: a binary function that returns the distance between
+        # two words.  Return value is a non-negative integer.  the
+        # distance function must be a metric space.
+        #
+        # words: an iterable.  produces values that can be passed to
+        # distfn
 
-        distfn: a binary function that returns the distance between
-        two words.  Return value is a non-negative integer.  the
-        distance function must be a metric space.
-        
-        words: an iterable.  produces values that can be passed to
-        distfn
-        
-        """
         self.distfn = distfn
 
         it = iter(words)
@@ -40,6 +39,13 @@ class BKTree:
         self.tree = (root, {})
 
         for i in it:
+            self._add_word(self.tree, i)
+    """
+    def __init__(self, distfn, words):
+        self.distfn = distfn
+        root = words[0]
+        self.tree = (root, {})
+        for i in words[1:]:
             self._add_word(self.tree, i)
 
     def _add_word(self, parent, word):
@@ -103,8 +109,8 @@ def brute_query(word, words, distfn, n):
             if distfn(i, word) <= n]
 
 
-def maxdepth(tree, count=0):
-    _, children = t
+def maxdepth(tree, c=0):
+    _, children = tree
     if len(children):
         return max(maxdepth(i, c+1) for i in children.values())
     else:
@@ -127,32 +133,39 @@ def levenshtein(s, t):
                            )
     return d[m][n]
 
-
+"""
 def dict_words(dictfile="/usr/share/dict/american-english"):
     "Return an iterator that produces words in the given dictionary."
     return ifilter(len,
                    imap(str.strip,
                         open(dictfile)))
-
+"""
+def list_words(dictfile):
+    words = []
+    with open(dictfile, "r", encoding="utf-8") as f:
+        for line in f.readlines():
+            line = line.strip()
+            words.append(line)
+    return words
 
 def timeof(fn, *args):
     import time
     t = time.time()
     res = fn(*args)
-    print "time: ", (time.time() - t)
+    print("time: ", (time.time() - t))
     return res
 
 
 
 if __name__ == "__main__":
 
-    tree = BKTree(levenshtein,
-                  dict_words('/usr/share/dict/american-english-large'))
+    # tree = BKTree(levenshtein, dict_words('vocab.txt'))
+    tree = BKTree(levenshtein, list_words('vocab.txt'))
 
-    print tree.query("ricoshet", 2)
-    
-#     dist = 1
-#     for i in ["book", "cat", "backlash", "scandal"]:
-#         w = set(tree.query(i, dist)) - set([i]) 
-#         print "words within %d of %s: %r" % (dist, i, w)
+    print(tree.query("ricoshet", 2))
+    dist = 1
+    for i in ["book", "cat", "backlash", "scandal"]:
+        w = set(tree.query(i, dist))
+        # print("words within %d of %s: %r" % (dist, i, w))
+        print(w)
 

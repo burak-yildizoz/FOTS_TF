@@ -5,9 +5,9 @@ from tensorflow.contrib import slim
 
 tf.app.flags.DEFINE_integer('input_size', 512, '')
 tf.app.flags.DEFINE_integer('batch_size_per_gpu', 12, '')
-tf.app.flags.DEFINE_integer('num_readers', 10, '')
+tf.app.flags.DEFINE_integer('num_readers', 6, '')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, '')
-tf.app.flags.DEFINE_integer('max_steps', 100001, '')
+tf.app.flags.DEFINE_integer('max_steps', 150001, '')
 tf.app.flags.DEFINE_float('moving_average_decay', 0.997, '')
 tf.app.flags.DEFINE_string('gpu_list', '1', '')
 tf.app.flags.DEFINE_string('checkpoint_path', 'checkpoints/', '')
@@ -15,9 +15,11 @@ tf.app.flags.DEFINE_boolean('restore', False, 'whether to resotre from checkpoin
 tf.app.flags.DEFINE_integer('save_checkpoint_steps', 1000, '')
 tf.app.flags.DEFINE_integer('save_summary_steps', 100, '')
 tf.app.flags.DEFINE_string('pretrained_model_path', None, '')
+tf.app.flags.DEFINE_integer('train_stage', 2, '0-train detection only; 1-train recognition only; 2-train end-to-end; 3-train end-to-end absolutely')
+tf.app.flags.DEFINE_string('training_data_dir', default='', help='training images dir')
+tf.app.flags.DEFINE_string('training_gt_data_dir', default='', help='training gt dir')
 
-import icdar
-# import synth
+from data_provider import data_generator
 from module import Backbone_branch, Recognition_branch, RoI_rotate
 
 FLAGS = tf.app.flags.FLAGS
@@ -26,16 +28,16 @@ FLAGS = tf.app.flags.FLAGS
 
 detect_part = Backbone_branch.Backbone(is_training=True)
 roi_rotate_part = RoI_rotate.RoIRotate()
-recognize_part = Recognition_branch.Recognition(is_training=True) 
+recognize_part = Recognition_branch.Recognition(is_training=False)
 
 def build_graph(input_images, input_transform_matrix, input_box_masks, input_box_widths, input_seq_len):
-    
+
     shared_feature, f_score, f_geometry = detect_part.model(input_images)
+    # if FLAGS.train_stage == 1:
+    #     shared_feature = tf.stop_gradient(shared_feature)
     pad_rois = roi_rotate_part.roi_rotate_tensor_pad(shared_feature, input_transform_matrix, input_box_masks, input_box_widths)
     recognition_logits = recognize_part.build_graph(pad_rois, input_box_widths)
-    # _, dense_decode = recognize_part.decode(recognition_logits, input_box_widths)
     return f_score, f_geometry, recognition_logits
-    # return f_score, f_geometry
 
 def compute_loss(f_score, f_geometry, recognition_logits, input_score_maps, input_geo_maps, input_training_masks, input_transcription, input_box_widths, lamda=0.01):
     detection_loss = detect_part.loss(input_score_maps, f_score, input_geo_maps, f_geometry, input_training_masks)
@@ -44,12 +46,18 @@ def compute_loss(f_score, f_geometry, recognition_logits, input_score_maps, inpu
     tf.summary.scalar('detect_loss', detection_loss)
     tf.summary.scalar('recognize_loss', recognition_loss)
 
-    return detection_loss, recognition_loss, detection_loss + lamda * recognition_loss
+    if FLAGS.train_stage == 2:
+        model_loss = detection_loss + lamda * recognition_loss
+    elif FLAGS.train_stage == 0:
+        model_loss = detection_loss
+    elif FLAGS.train_stage == 1:
+        model_loss = recognition_loss
+
+    return detection_loss, recognition_loss, model_loss
 
 def main(argv=None):
     import os
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
     if not tf.gfile.Exists(FLAGS.checkpoint_path):
         tf.gfile.MkDir(FLAGS.checkpoint_path)
     else:
@@ -62,39 +70,43 @@ def main(argv=None):
     input_geo_maps = tf.placeholder(tf.float32, shape=[None, None, None, 5], name='input_geo_maps')
     input_training_masks = tf.placeholder(tf.float32, shape=[None, None, None, 1], name='input_training_masks')
     input_transcription = tf.sparse_placeholder(tf.int32, name='input_transcription')
-    
+
     input_transform_matrix = tf.placeholder(tf.float32, shape=[None, 6], name='input_transform_matrix')
     input_transform_matrix = tf.stop_gradient(input_transform_matrix)
     input_box_masks = []
-    # input_box_mask = tf.placeholder(tf.int32, shape=[None], name='input_box_mask')
+
     input_box_widths = tf.placeholder(tf.int32, shape=[None], name='input_box_widths')
     input_seq_len = input_box_widths[tf.argmax(input_box_widths, 0)] * tf.ones_like(input_box_widths)
-    # input_box_nums = tf.placeholder(tf.int32, name='input_box_nums')
-    # input_seq_len = tf.placeholder(tf.int32, shape=[None], name='input_seq_len')
 
     for i in range(FLAGS.batch_size_per_gpu):
         input_box_masks.append(tf.placeholder(tf.int32, shape=[None], name='input_box_masks_' + str(i)))
 
-    # f_score, f_geometry, recognition_logits, dense_decode = build_graph(input_images, input_transform_matrix, input_box_mask, input_box_widths, input_box_nums, input_seq_len)
     f_score, f_geometry, recognition_logits = build_graph(input_images, input_transform_matrix, input_box_masks, input_box_widths, input_seq_len)
-    # f_score, f_geometry = build_graph(input_images, input_transform_matrix, input_box_mask, input_box_widths, input_box_nums, input_seq_len)
 
     global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
-    learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, decay_steps=10000, decay_rate=0.94, staircase=True)
+    # learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step, decay_steps=10000, decay_rate=0.94, staircase=True)
+    learning_rate = FLAGS.learning_rate
     # add summary
     tf.summary.scalar('learning_rate', learning_rate)
     opt = tf.train.AdamOptimizer(learning_rate)
-    # opt = tf.train.MomentumOptimizer(learning_rate, 0.9)
 
-    # d_loss, r_loss, model_loss = compute_loss(f_score, f_geometry, recognition_logits, input_score_maps, input_geo_maps, input_training_masks, input_transcription, input_seq_len)
-    # d_loss, r_loss, model_loss = compute_loss(f_score, f_geometry, recognition_logits, input_score_maps, input_geo_maps, input_training_masks, input_transcription, input_seq_len)
     d_loss, r_loss, model_loss = compute_loss(f_score, f_geometry, recognition_logits, input_score_maps, input_geo_maps, input_training_masks, input_transcription, input_box_widths)
     # total_loss = detect_part.loss(input_score_maps, f_score, input_geo_maps, f_geometry, input_training_masks)
     tf.summary.scalar('total_loss', model_loss)
     total_loss = tf.add_n([model_loss] + tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
     # total_loss = model_loss
     batch_norm_updates_op = tf.group(*tf.get_collection(tf.GraphKeys.UPDATE_OPS))
-    grads = opt.compute_gradients(total_loss)
+    if FLAGS.train_stage == 1:
+        print("Train recognition branch only!")
+        recog_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='recog')
+        # grads = opt.compute_gradients(total_loss, recog_vars)
+        grads = opt.compute_gradients(total_loss)
+    else:
+        grads = opt.compute_gradients(total_loss)
+    # greds clip
+    for i, (g, v) in enumerate(grads):
+        if g is not None:
+            grads[i] = (tf.clip_by_norm(g, 1.0), v)
     apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
 
     summary_op = tf.summary.merge_all()
@@ -113,17 +125,14 @@ def main(argv=None):
 
     if FLAGS.pretrained_model_path is not None:
         if os.path.isdir(FLAGS.pretrained_model_path):
-            print "Restore pretrained model from other datasets"
+            print("Restore pretrained model from other datasets")
             ckpt = tf.train.latest_checkpoint(FLAGS.pretrained_model_path)
             variable_restore_op = slim.assign_from_checkpoint_fn(ckpt, slim.get_trainable_variables(),
                                                              ignore_missing_vars=True)
         else: # is *.ckpt
-            print "Restore pretrained model from imagenet"
+            print("Restore pretrained model from imagenet")
             variable_restore_op = slim.assign_from_checkpoint_fn(FLAGS.pretrained_model_path, slim.get_trainable_variables(),
                                                              ignore_missing_vars=True)
-        # ckpt = tf.train.latest_checkpoint(FLAGS.pretrained_model_path)
-        # variable_restore_op = slim.assign_from_checkpoint_fn(ckpt, slim.get_trainable_variables(), ignore_missing_vars=True)
-    # with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, gpu_options=gpu_options)) as sess:
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         if FLAGS.restore:
             print('continue training from previous checkpoint')
@@ -134,19 +143,13 @@ def main(argv=None):
             if FLAGS.pretrained_model_path is not None:
                 variable_restore_op(sess)
 
-        
-        data_generator = icdar.get_batch(num_workers=FLAGS.num_readers,
+        dg = data_generator.get_batch(input_images_dir=FLAGS.training_data_dir, input_gt_dir=FLAGS.training_gt_data_dir, num_workers=FLAGS.num_readers,
                                          input_size=FLAGS.input_size,
                                          batch_size=FLAGS.batch_size_per_gpu)
-        
-        """
-        data_generator = synth.get_batch(num_workers=FLAGS.num_readers,
-                                         input_size=FLAGS.input_size,
-                                         batch_size=FLAGS.batch_size_per_gpu)
-        """
+
         start = time.time()
         for step in range(FLAGS.max_steps):
-            data = next(data_generator)
+            data = next(dg)
             inp_dict = {input_images: data[0],
                         input_score_maps: data[2],
                         input_geo_maps: data[3],
@@ -159,11 +162,10 @@ def main(argv=None):
                 inp_dict[input_box_masks[i]] = data[6][i]
 
 
-            dl, rl, tl,  _ = sess.run([d_loss, r_loss, total_loss, train_op], feed_dict=inp_dict)
+            dl, rl, tl, _ = sess.run([d_loss, r_loss, total_loss, train_op], feed_dict=inp_dict)
             if np.isnan(tl):
                 print('Loss diverged, stop training')
                 break
-            
 
             if step % 10 == 0:
                 avg_time_per_step = (time.time() - start)/10
@@ -171,13 +173,13 @@ def main(argv=None):
                 start = time.time()
                 print('Step {:06d}, detect_loss {:.4f}, recognize_loss {:.4f}, total loss {:.4f}, {:.2f} seconds/step, {:.2f} examples/second'.format(
                     step, dl, rl, tl, avg_time_per_step, avg_examples_per_second))
-                
+
                 """
                 print "recognition results: "
                 for pred in result:
                     print icdar.ground_truth_to_word(pred)
                 """
-            
+
             if step % FLAGS.save_checkpoint_steps == 0:
                 saver.save(sess, FLAGS.checkpoint_path + 'model.ckpt', global_step=global_step)
 
@@ -189,7 +191,7 @@ def main(argv=None):
                                                                                              input_training_masks: data[4]})
                 """
                 dl, rl, tl, _, summary_str = sess.run([d_loss, r_loss, total_loss, train_op, summary_op], feed_dict=inp_dict)
-                
+
                 summary_writer.add_summary(summary_str, global_step=step)
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import sys
+from .stn import spatial_transformer_network as transformer
 sys.path.append("..")
 import numpy as np
 import cv2
@@ -8,7 +9,6 @@ import math
 import config
 import os
 
-from stn import spatial_transformer_network as transformer
 
 class RoIRotate(object):
 	def __init__(self, height=8):
@@ -16,13 +16,13 @@ class RoIRotate(object):
 
 	def roi_rotate_tensor(self, feature_map, transform_matrixs, box_masks, box_widths, is_debug=False):
 		"""
-		Input:
-			feature_map: N * H * W * C
-			transform_matrixs: N' * 6
-			box_masks: list of tensor N'
-			box_widths: N'
+		param:
+		feature_map: N * H * W * C
+		transform_matrixs: N' * 6
+		box_masks: list of tensor N'
+		box_widths: N'
 		"""
-		with tf.variable_scope("RoIrotate"): 
+		with tf.variable_scope("RoIrotate"):
 			max_width = box_widths[tf.argmax(box_widths, 0, output_type=tf.int32)]
 			box_widths = tf.cast(box_widths, tf.float32)
 			tile_feature_maps = []
@@ -61,19 +61,19 @@ class RoIRotate(object):
 			# crop_sizes = tf.stack(crop_sizes, axis=0)
 
 			trans_feature_map = transformer(tile_feature_maps, transform_matrixs)
-			
+
 			# box_inds = tf.concat(box_masks, axis=0)
 			box_inds = tf.range(tf.shape(trans_feature_map)[0])
 			rois = tf.image.crop_and_resize(trans_feature_map, crop_boxes, box_inds, crop_size)
 
 			pad_rois = tf.image.pad_to_bounding_box(rois, 0, 0, 8, max_width)
 
-			print "pad_rois: ", pad_rois
+			print("pad_rois: ", pad_rois)
 
 			return pad_rois
 
 	def roi_rotate_tensor_pad(self, feature_map, transform_matrixs, box_masks, box_widths):
-		with tf.variable_scope("RoIrotate"): 
+		with tf.variable_scope("RoIrotate"):
 			max_width = box_widths[tf.argmax(box_widths, 0, output_type=tf.int32)]
 			# box_widths = tf.cast(box_widths, tf.float32)
 			tile_feature_maps = []
@@ -118,7 +118,7 @@ class RoIRotate(object):
 			pad_rois, _ = tf.while_loop(cond, body, loop_vars=[pad_rois, i])
 			pad_rois = pad_rois.stack()
 
-			print "pad_rois shape: ", pad_rois
+			print("pad_rois shape: ", pad_rois)
 
 			return pad_rois
 
@@ -132,13 +132,13 @@ class RoIRotate(object):
 			box_widths: N'
 		"""
 		with tf.variable_scope("RoIrotate"):
-			box_masks = tf.concat(box_masks, axis=0) 
+			box_masks = tf.concat(box_masks, axis=0)
 			box_nums = tf.shape(box_widths)[0]
 			pad_rois = tf.TensorArray(tf.float32, box_nums)
 			# after_transforms = []
 			max_width = box_widths[tf.arg_max(box_widths, 0, tf.int32)]
 			i = 0
-			
+
 			def cond(pad_rois, i):
 				return i < box_nums
 
@@ -149,7 +149,7 @@ class RoIRotate(object):
 				map_shape = tf.shape(_feature_map)
 				map_shape = tf.to_float(map_shape)
 				# _feature_map = feature_map[i]
-				print box_widths
+				print(box_widths)
 				width_box = box_widths[i]
 				width_box = tf.cast(width_box, tf.float32)
 
@@ -158,7 +158,7 @@ class RoIRotate(object):
 				# after_transforms.append(after_transform)
 				after_transform = tf.expand_dims(after_transform, 0)
 				# roi = tf.image.crop_and_resize(after_transform, [[0, 0, 8/720.0, width_box/1280.0]], [0], [8, width_box])
-			
+
 				# roi = tf.image.crop_and_resize(after_transform, [[0, 0, 8/(config.INPUT_IMAGE_SIZE / 4.0), width_box/(config.INPUT_IMAGE_SIZE / 4.0)]], [0], [8, width_box])
 				# There are some erros
 				# roi = tf.image.crop_and_resize(after_transform, [[0, 0, 8/(config.INPUT_SIZE / 4.0), width_box/(config.INPUT_SIZE / 4.0)]], [0], [8, tf.cast(width_box, tf.int32)])
@@ -184,7 +184,7 @@ def dummy_input():
 	box_widths = []
 	box_masks = []
 	transform_matrixs = []
-	
+
 	fea_h = []
 	fea_w = []
 
@@ -198,7 +198,7 @@ def dummy_input():
 		box_mask = []
 		for line in gt_file.readlines():
 			box_num += 1
-			
+
 			# line = gt_file.readline()
 
 			info = line.split(",")
@@ -266,7 +266,7 @@ def check_RoIRotate(RR):
 	data = dummy_input()
 	for i in range(6):
 		if i != 4:
-			print data[i].shape
+			print(data[i].shape)
 
 	with tf.Session() as sess:
 		inp_dict = {input_feature_map: data[0], input_feature_height: data[1], input_feature_width: data[2], input_transform_matrix: data[3], input_box_widths: data[5]}
@@ -274,7 +274,7 @@ def check_RoIRotate(RR):
 			inp_dict[input_box_masks[i]] = data[4][i]
 		result_rois = sess.run(pad_rois, feed_dict=inp_dict)
 		# output_rois = np.squeeze(output_rois)
-		# print len(transforms)
+		# print(len(transforms))
 	return result_rois
 
 if __name__ == '__main__':
